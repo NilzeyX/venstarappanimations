@@ -9,6 +9,8 @@ import {
 } from "react-native";
 import { Stack } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
+import SunnyDayEffect from "../components/weather/SunnyDayEffect";
+import SnowDayEffect from "../components/weather/SnowDayEffect";
 
 // Time of day enum
 enum TimeOfDay {
@@ -16,33 +18,49 @@ enum TimeOfDay {
   NIGHT = "night",
 }
 
-// Gradient colors for different times of day (as readonly tuples for TypeScript)
-const dayGradientColors = ["#1e90ff", "#87CEEB", "#B0E2FF"] as const;
-const nightGradientColors = ["#0C1221", "#1A2339", "#2D3A56"] as const;
+// Weather condition enum
+enum WeatherType {
+  SUNNY = "sunny",
+  CLOUDY = "cloudy",
+  RAINY = "rainy",
+  SNOWY = "snowy",
+}
+
+// Floor gradient colors for different conditions
+const dayFloorGradient = ["#bccdd2", "#dae2e4"] as const;
+const nightFloorGradient = ["#373f47", "#515b63"] as const; // Darker version of day gradient
+const snowyFloorGradient = ["#c3d1df", "#e6ebf0"] as const; // Blueish snow floor
 
 // Type definition for the gradient colors
-type GradientColorsType = typeof dayGradientColors | typeof nightGradientColors;
+type FloorGradientType =
+  | typeof dayFloorGradient
+  | typeof nightFloorGradient
+  | typeof snowyFloorGradient;
 
 export default function AnimatedHouse() {
   // State to track current time of day
   const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>(TimeOfDay.DAY);
 
+  // State to track weather condition (currently manually set)
+  const [weatherCondition, setWeatherCondition] = useState<WeatherType>(
+    WeatherType.SNOWY
+  );
+
   // Animation value for crossfade
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
   // Two sets of colors for crossfade effect
-  const [visibleGradient, setVisibleGradient] =
-    useState<GradientColorsType>(dayGradientColors);
-  const [hiddenGradient, setHiddenGradient] =
-    useState<GradientColorsType>(nightGradientColors);
+  const [visibleFloorGradient, setVisibleFloorGradient] =
+    useState<FloorGradientType>(dayFloorGradient);
+  const [hiddenFloorGradient, setHiddenFloorGradient] =
+    useState<FloorGradientType>(nightFloorGradient);
 
   // Get screen dimensions for responsive sizing
   const screenWidth = Dimensions.get("window").width;
   const screenHeight = Dimensions.get("window").height;
 
-  // Calculate responsive dimensions while maintaining aspect ratio
-  const imageWidth = screenWidth * 0.8; // 80% of screen width
-  const imageHeight = screenHeight * 0.7; // 70% of screen height
+  // Calculate house size based only on width to maintain aspect ratio
+  const imageWidth = screenWidth * 0.9; // 90% of screen width
 
   // Function to check if it's day or night based on current time
   const checkTimeOfDay = () => {
@@ -54,61 +72,159 @@ export default function AnimatedHouse() {
     // Only update if there's a change
     if (newTimeOfDay !== timeOfDay) {
       setTimeOfDay(newTimeOfDay);
-      performCrossfade(isDay);
+      updateFloorGradient(newTimeOfDay, weatherCondition);
     }
   };
 
-  // Handle the crossfade animation between day and night
-  const performCrossfade = (isDay: boolean) => {
-    // Set the hidden gradient to the new target
-    setHiddenGradient(isDay ? dayGradientColors : nightGradientColors);
+  // Function to update weather (would connect to a weather API in a real app)
+  const updateWeather = () => {
+    // For demo purposes, let's use snowy weather
+    setWeatherCondition(WeatherType.SNOWY);
+    // Update gradient when weather changes
+    updateFloorGradient(timeOfDay, WeatherType.SNOWY);
 
-    // Fade out current gradient
+    // In a real app, you would fetch the actual weather:
+    // const fetchWeather = async () => {
+    //   try {
+    //     const response = await fetch('your-weather-api-endpoint');
+    //     const data = await response.json();
+    //     // Update weather based on API response
+    //     // const newWeather = mapApiWeatherToEnum(data.condition);
+    //     // setWeatherCondition(newWeather);
+    //     // updateFloorGradient(timeOfDay, newWeather);
+    //   } catch (error) {
+    //     console.error('Error fetching weather:', error);
+    //   }
+    // };
+    // fetchWeather();
+  };
+
+  // Handle floor gradient updates based on time of day and weather
+  const updateFloorGradient = (time: TimeOfDay, weather: WeatherType) => {
+    let newGradient: FloorGradientType;
+
+    // If it's snowing, use the snowy floor gradient regardless of time
+    if (weather === WeatherType.SNOWY) {
+      newGradient = snowyFloorGradient;
+    } else {
+      // Otherwise use day/night based on time
+      newGradient =
+        time === TimeOfDay.DAY ? dayFloorGradient : nightFloorGradient;
+    }
+
+    // Set the hidden gradient to the new target
+    setHiddenFloorGradient(newGradient);
+
+    // Perform crossfade
     Animated.timing(fadeAnim, {
       toValue: 0,
-      duration: 700, // 0.7 seconds as requested
+      duration: 700,
       useNativeDriver: false,
     }).start(() => {
       // Swap gradients and reset animation
-      setVisibleGradient(isDay ? dayGradientColors : nightGradientColors);
+      setVisibleFloorGradient(newGradient);
       fadeAnim.setValue(1);
     });
   };
 
-  // Check time of day on component mount and set up interval
+  // Check time of day and weather on component mount and set up interval
   useEffect(() => {
-    // Set initial state based on current time
+    // Set initial states
     checkTimeOfDay();
+    updateWeather();
 
     // Set up interval to check every minute
-    const intervalId = setInterval(checkTimeOfDay, 60000);
+    const timeIntervalId = setInterval(checkTimeOfDay, 60000);
 
-    // Clean up interval on unmount
-    return () => clearInterval(intervalId);
+    // Set up interval to check weather every hour (in a real app)
+    // const weatherIntervalId = setInterval(updateWeather, 3600000);
+
+    // Clean up intervals on unmount
+    return () => {
+      clearInterval(timeIntervalId);
+      // clearInterval(weatherIntervalId);
+    };
   }, []);
+
+  // Render the appropriate weather effect based on time and conditions
+  const renderWeatherEffect = () => {
+    if (timeOfDay === TimeOfDay.DAY) {
+      switch (weatherCondition) {
+        case WeatherType.SUNNY:
+          return <SunnyDayEffect />;
+        case WeatherType.SNOWY:
+          return <SnowDayEffect />;
+        // Add other day weather effects as they're implemented
+        default:
+          return null;
+      }
+    } else {
+      // Night time effects
+      switch (weatherCondition) {
+        case WeatherType.SNOWY:
+          return <SnowDayEffect />;
+        // Implement and return other night effects when they're created
+        default:
+          return null;
+      }
+    }
+  };
 
   return (
     <View style={styles.container}>
-      {/* Background gradient layers for crossfade effect */}
-      <View style={styles.background}>
+      {/* Background color instead of full gradient */}
+      <View
+        style={[
+          styles.background,
+          {
+            backgroundColor:
+              weatherCondition === WeatherType.SNOWY
+                ? "#7e96ba"
+                : timeOfDay === TimeOfDay.DAY
+                ? "#87CEEB"
+                : "#0C1221",
+          },
+        ]}
+      />
+
+      {/* Floor gradient layers for crossfade effect */}
+      <View style={styles.floor}>
         {/* Hidden gradient (will become visible during transition) */}
         <LinearGradient
-          colors={hiddenGradient}
-          style={styles.gradient}
+          colors={hiddenFloorGradient}
+          style={styles.floorGradient}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
         />
       </View>
 
-      {/* Visible gradient that fades out during transition */}
-      <Animated.View style={[styles.background, { opacity: fadeAnim }]}>
+      {/* Visible floor gradient that fades out during transition */}
+      <Animated.View style={[styles.floor, { opacity: fadeAnim }]}>
         <LinearGradient
-          colors={visibleGradient}
-          style={styles.gradient}
+          colors={visibleFloorGradient}
+          style={styles.floorGradient}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
         />
       </Animated.View>
+
+      {/* The house image */}
+      <View style={styles.content}>
+        <Image
+          source={require("../assets/images/Plain2dHouse.webp")}
+          style={[
+            styles.houseImage,
+            {
+              width: imageWidth,
+              position: "absolute",
+            },
+          ]}
+          resizeMode="contain"
+        />
+      </View>
+
+      {/* Weather effects */}
+      {renderWeatherEffect()}
 
       <Stack.Screen
         options={{
@@ -117,20 +233,11 @@ export default function AnimatedHouse() {
         }}
       />
 
-      <View style={styles.content}>
-        <Image
-          source={require("../assets/images/Plain2dHouse.webp")}
-          style={[
-            styles.houseImage,
-            { width: imageWidth, height: imageHeight },
-          ]}
-          resizeMode="contain"
-        />
-      </View>
-
-      {/* Time indicator */}
+      {/* Time and weather indicator */}
       <View style={styles.timeIndicator}>
-        <Text style={styles.timeText}>Current: {timeOfDay}</Text>
+        <Text style={styles.timeText}>
+          Time: {timeOfDay} | Weather: {weatherCondition}
+        </Text>
       </View>
     </View>
   );
@@ -147,7 +254,14 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
   },
-  gradient: {
+  floor: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: "60%", // Bottom 60% of screen
+    bottom: 0,
+  },
+  floorGradient: {
     flex: 1,
   },
   content: {
