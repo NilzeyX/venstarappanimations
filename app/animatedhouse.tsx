@@ -20,30 +20,44 @@ enum TimeOfDay {
 
 // Weather condition enum
 enum WeatherType {
-  SUNNY = "sunny",
-  CLOUDY = "cloudy",
-  RAINY = "rainy",
-  SNOWY = "snowy",
+  SUNNY_DAY = "sunny_day",
+  CLEAR_NIGHT = "clear_night",
+  SNOW_DAY = "snow_day",
+  SNOW_NIGHT = "snow_night",
+  CLOUDY_DAY = "cloudy_day",
+  CLOUDY_NIGHT = "cloudy_night",
+  RAINY_DAY = "rainy_day",
+  RAINY_NIGHT = "rainy_night",
+  PARTLY_CLOUDY_DAY = "partly_cloudy_day",
+  PARTLY_CLOUDY_NIGHT = "partly_cloudy_night",
 }
 
+// Sky gradient colors for different conditions
+const skySunnyDayGradient = ["#87CEEB", "#4f71a7"] as const;
+const skySunnyNightGradient = ["#0C1221", "#1f2a3a"] as const;
+const skyClearDayGradient = ["#87CEEB", "#4f71a7"] as const;
+const skyClearNightGradient = ["#0C1221", "#1f2a3a"] as const;
+const skyPartlyCloudyDayGradient = ["#7e96ba", "#4f71a7"] as const;
+const skyPartlyCloudyNightGradient = ["#232936", "#1f2a3a"] as const;
+const skyCloudyDayGradient = ["#6e8bb2", "#4f71a7"] as const;
+const skyCloudyNightGradient = ["#1e2430", "#1f2a3a"] as const;
+const skyRainyDayGradient = ["#5a7799", "#4f71a7"] as const;
+const skyRainyNightGradient = ["#1a222d", "#1f2a3a"] as const;
+const snowySkyGradient = ["#7e96ba", "#4f71a7"] as const;
+const snowyNightSkyGradient = ["#2a3646", "#1f2a3a"] as const;
+
 // Floor gradient colors for different conditions
-const dayFloorGradient = ["#bccdd2", "#dae2e4"] as const;
-const nightFloorGradient = ["#373f47", "#515b63"] as const; // Darker version of day gradient
-const snowyFloorGradient = ["#c3d1df", "#e6ebf0"] as const; // Blueish snow floor
+const floorGradient = ["#50627b", "#4f71a7"] as const; // Standard floor gradient for all conditions
+const skyGradient = ["#374a61", "#435469"] as const; // Standard sky gradient for all conditions
 
 // Type definition for the gradient colors
-type FloorGradientType =
-  | typeof dayFloorGradient
-  | typeof nightFloorGradient
-  | typeof snowyFloorGradient;
+type FloorGradientType = typeof floorGradient;
+type SkyGradientType = typeof skyGradient;
 
 export default function AnimatedHouse() {
-  // State to track current time of day
-  const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>(TimeOfDay.DAY);
-
   // State to track weather condition (currently manually set)
   const [weatherCondition, setWeatherCondition] = useState<WeatherType>(
-    WeatherType.SNOWY
+    WeatherType.SNOW_DAY
   );
 
   // Animation value for crossfade
@@ -51,9 +65,15 @@ export default function AnimatedHouse() {
 
   // Two sets of colors for crossfade effect
   const [visibleFloorGradient, setVisibleFloorGradient] =
-    useState<FloorGradientType>(dayFloorGradient);
+    useState<FloorGradientType>(floorGradient);
   const [hiddenFloorGradient, setHiddenFloorGradient] =
-    useState<FloorGradientType>(nightFloorGradient);
+    useState<FloorGradientType>(floorGradient);
+
+  // Sky gradient states
+  const [visibleSkyGradient, setVisibleSkyGradient] =
+    useState<SkyGradientType>(skyGradient);
+  const [hiddenSkyGradient, setHiddenSkyGradient] =
+    useState<SkyGradientType>(skyGradient);
 
   // Get screen dimensions for responsive sizing
   const screenWidth = Dimensions.get("window").width;
@@ -62,26 +82,97 @@ export default function AnimatedHouse() {
   // Calculate house size based only on width to maintain aspect ratio
   const imageWidth = screenWidth * 0.9; // 90% of screen width
 
-  // Function to check if it's day or night based on current time
+  // Function to check time of day and update weather condition
   const checkTimeOfDay = () => {
     const currentHour = new Date().getHours();
     // Day is between 6am and 6pm
     const isDay = currentHour >= 6 && currentHour < 18;
-    const newTimeOfDay = isDay ? TimeOfDay.DAY : TimeOfDay.NIGHT;
 
-    // Only update if there's a change
-    if (newTimeOfDay !== timeOfDay) {
-      setTimeOfDay(newTimeOfDay);
-      updateFloorGradient(newTimeOfDay, weatherCondition);
+    // Update weather condition based on time of day
+    updateWeatherBasedOnTime(isDay);
+  };
+
+  // Function to update weather condition based on time
+  const updateWeatherBasedOnTime = (isDay: boolean) => {
+    // Get current weather type base
+    const currentWeatherBase = getCurrentWeatherBase(weatherCondition);
+
+    // Set appropriate day/night version
+    let newWeather: WeatherType;
+
+    switch (currentWeatherBase) {
+      case "sunny":
+        newWeather = isDay ? WeatherType.SUNNY_DAY : WeatherType.CLEAR_NIGHT;
+        break;
+      case "snow":
+        newWeather = isDay ? WeatherType.SNOW_DAY : WeatherType.SNOW_NIGHT;
+        break;
+      case "cloudy":
+        newWeather = isDay ? WeatherType.CLOUDY_DAY : WeatherType.CLOUDY_NIGHT;
+        break;
+      case "rainy":
+        newWeather = isDay ? WeatherType.RAINY_DAY : WeatherType.RAINY_NIGHT;
+        break;
+      case "partly_cloudy":
+        newWeather = isDay
+          ? WeatherType.PARTLY_CLOUDY_DAY
+          : WeatherType.PARTLY_CLOUDY_NIGHT;
+        break;
+      default:
+        newWeather = isDay ? WeatherType.SUNNY_DAY : WeatherType.CLEAR_NIGHT;
     }
+
+    if (newWeather !== weatherCondition) {
+      setWeatherCondition(newWeather);
+      updateGradients(newWeather);
+    }
+  };
+
+  // Helper function to get the base weather type from a full weather condition
+  const getCurrentWeatherBase = (weather: WeatherType): string => {
+    if (
+      weather === WeatherType.SUNNY_DAY ||
+      weather === WeatherType.CLEAR_NIGHT
+    ) {
+      return "sunny";
+    } else if (
+      weather === WeatherType.SNOW_DAY ||
+      weather === WeatherType.SNOW_NIGHT
+    ) {
+      return "snow";
+    } else if (
+      weather === WeatherType.CLOUDY_DAY ||
+      weather === WeatherType.CLOUDY_NIGHT
+    ) {
+      return "cloudy";
+    } else if (
+      weather === WeatherType.RAINY_DAY ||
+      weather === WeatherType.RAINY_NIGHT
+    ) {
+      return "rainy";
+    } else if (
+      weather === WeatherType.PARTLY_CLOUDY_DAY ||
+      weather === WeatherType.PARTLY_CLOUDY_NIGHT
+    ) {
+      return "partly_cloudy";
+    }
+    return "snow"; // Default
   };
 
   // Function to update weather (would connect to a weather API in a real app)
   const updateWeather = () => {
-    // For demo purposes, let's use snowy weather
-    setWeatherCondition(WeatherType.SNOWY);
-    // Update gradient when weather changes
-    updateFloorGradient(timeOfDay, WeatherType.SNOWY);
+    // For demo purposes, let's use snow weather
+    const currentHour = new Date().getHours();
+    const isDay = currentHour >= 6 && currentHour < 18;
+
+    // Set to snow day or snow night based on time
+    const newWeather = isDay ? WeatherType.SNOW_DAY : WeatherType.SNOW_NIGHT;
+
+    // Update weather condition
+    setWeatherCondition(newWeather);
+
+    // Update gradients
+    updateGradients(newWeather);
 
     // In a real app, you would fetch the actual weather:
     // const fetchWeather = async () => {
@@ -91,7 +182,7 @@ export default function AnimatedHouse() {
     //     // Update weather based on API response
     //     // const newWeather = mapApiWeatherToEnum(data.condition);
     //     // setWeatherCondition(newWeather);
-    //     // updateFloorGradient(timeOfDay, newWeather);
+    //     // updateGradients(newWeather);
     //   } catch (error) {
     //     console.error('Error fetching weather:', error);
     //   }
@@ -99,21 +190,17 @@ export default function AnimatedHouse() {
     // fetchWeather();
   };
 
-  // Handle floor gradient updates based on time of day and weather
-  const updateFloorGradient = (time: TimeOfDay, weather: WeatherType) => {
-    let newGradient: FloorGradientType;
+  // Handle gradient updates based on weather
+  const updateGradients = (weather: WeatherType) => {
+    // Always use the standard floor gradient for now as requested
+    const newFloorGradient = floorGradient;
 
-    // If it's snowing, use the snowy floor gradient regardless of time
-    if (weather === WeatherType.SNOWY) {
-      newGradient = snowyFloorGradient;
-    } else {
-      // Otherwise use day/night based on time
-      newGradient =
-        time === TimeOfDay.DAY ? dayFloorGradient : nightFloorGradient;
-    }
+    // For now, as requested, we'll use the same sky gradient for all cases
+    const newSkyGradient = skyGradient;
 
-    // Set the hidden gradient to the new target
-    setHiddenFloorGradient(newGradient);
+    // Set the hidden gradients to the new targets
+    setHiddenFloorGradient(newFloorGradient);
+    setHiddenSkyGradient(newSkyGradient);
 
     // Perform crossfade
     Animated.timing(fadeAnim, {
@@ -122,7 +209,8 @@ export default function AnimatedHouse() {
       useNativeDriver: false,
     }).start(() => {
       // Swap gradients and reset animation
-      setVisibleFloorGradient(newGradient);
+      setVisibleFloorGradient(newFloorGradient);
+      setVisibleSkyGradient(newSkyGradient);
       fadeAnim.setValue(1);
     });
   };
@@ -146,50 +234,64 @@ export default function AnimatedHouse() {
     };
   }, []);
 
-  // Render the appropriate weather effect based on time and conditions
+  // Render the appropriate weather effect based on condition
   const renderWeatherEffect = () => {
-    if (timeOfDay === TimeOfDay.DAY) {
-      switch (weatherCondition) {
-        case WeatherType.SUNNY:
-          return <SunnyDayEffect />;
-        case WeatherType.SNOWY:
-          return <SnowDayEffect />;
-        // Add other day weather effects as they're implemented
-        default:
-          return null;
-      }
-    } else {
-      // Night time effects
-      switch (weatherCondition) {
-        case WeatherType.SNOWY:
-          return <SnowDayEffect />;
-        // Implement and return other night effects when they're created
-        default:
-          return null;
-      }
+    switch (weatherCondition) {
+      case WeatherType.SUNNY_DAY:
+        return <SunnyDayEffect />;
+      case WeatherType.CLEAR_NIGHT:
+        return null; // Will need ClearNightEffect
+      case WeatherType.SNOW_DAY:
+        return <SnowDayEffect />;
+      case WeatherType.SNOW_NIGHT:
+        return <SnowDayEffect />; //needs night version
+      case WeatherType.CLOUDY_DAY:
+        return null; // Will need CloudyDayEffect
+      case WeatherType.CLOUDY_NIGHT:
+        return null; // Will need CloudyNightEffect
+      case WeatherType.RAINY_DAY:
+        return null; // Will need RainyDayEffect
+      case WeatherType.RAINY_NIGHT:
+        return null; // Will need RainyNightEffect
+      case WeatherType.PARTLY_CLOUDY_DAY:
+        return null; // Will need PartlyCloudyDayEffect
+      case WeatherType.PARTLY_CLOUDY_NIGHT:
+        return null; // Will need PartlyCloudyNightEffect
+      default:
+        return null;
     }
+  };
+
+  // Get the appropriate house image based on weather
+  const getHouseImage = () => {
+    // For now use the same house image for all conditions as requested
+    return require("../assets/images/Plain2dHouse.webp");
   };
 
   return (
     <View style={styles.container}>
-      {/* Background color instead of full gradient */}
-      <View
-        style={[
-          styles.background,
-          {
-            backgroundColor:
-              weatherCondition === WeatherType.SNOWY
-                ? "#7e96ba"
-                : timeOfDay === TimeOfDay.DAY
-                ? "#87CEEB"
-                : "#0C1221",
-          },
-        ]}
-      />
+      {/* Sky gradient */}
+      <View style={styles.background}>
+        <LinearGradient
+          colors={hiddenSkyGradient}
+          style={styles.background}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+        />
+      </View>
 
-      {/* Floor gradient layers for crossfade effect */}
+      {/* Animated sky gradient */}
+      <Animated.View style={[styles.background, { opacity: fadeAnim }]}>
+        <LinearGradient
+          colors={visibleSkyGradient}
+          style={styles.background}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+        />
+      </Animated.View>
+
+      {/* Floor gradient */}
       <View style={styles.floor}>
-        {/* Hidden gradient (will become visible during transition) */}
         <LinearGradient
           colors={hiddenFloorGradient}
           style={styles.floorGradient}
@@ -198,7 +300,7 @@ export default function AnimatedHouse() {
         />
       </View>
 
-      {/* Visible floor gradient that fades out during transition */}
+      {/* Animated floor gradient */}
       <Animated.View style={[styles.floor, { opacity: fadeAnim }]}>
         <LinearGradient
           colors={visibleFloorGradient}
@@ -211,7 +313,7 @@ export default function AnimatedHouse() {
       {/* The house image */}
       <View style={styles.content}>
         <Image
-          source={require("../assets/images/Plain2dHouse.webp")}
+          source={getHouseImage()}
           style={[
             styles.houseImage,
             {
@@ -235,9 +337,7 @@ export default function AnimatedHouse() {
 
       {/* Time and weather indicator */}
       <View style={styles.timeIndicator}>
-        <Text style={styles.timeText}>
-          Time: {timeOfDay} | Weather: {weatherCondition}
-        </Text>
+        <Text style={styles.timeText}>Time: {weatherCondition}</Text>
       </View>
     </View>
   );
