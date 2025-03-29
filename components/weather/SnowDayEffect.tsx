@@ -6,30 +6,26 @@ import {
   Platform,
   Animated,
   Easing,
+  Image,
 } from "react-native";
 
 // Platform-specific settings
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const isSimulator = Platform.OS === "ios" && !Platform.isPad;
 
-// Calculate flake distribution - increased by 1.5x
-const SMALL_COUNT = isSimulator ? 200 : 275; // 2.5x of original small count × 1.5
-const MEDIUM_COUNT = isSimulator ? 25 : 45; // 20% of original count × 1.5
-const LARGE_COUNT = isSimulator ? 9 : 15; // 10% of original count × 1.5
-const XLARGE_COUNT = isSimulator ? 2 : 5; // 5% of original count × 1.5
+// Calculate flake distribution
+const SMALL_COUNT = 250;
+const MEDIUM_COUNT = 45;
+const LARGE_COUNT = 10;
+const XLARGE_COUNT = 5;
 
 // Snow effect settings - increased snowflakes by 1.5x
 const SNOWFLAKE_COUNT = SMALL_COUNT + MEDIUM_COUNT + LARGE_COUNT + XLARGE_COUNT;
-const UPDATE_INTERVAL = 50;
 
 // Snow effect settings
-const MIN_SIZE = 1;
-const MAX_SIZE = 10;
 const EXTRA_LARGE_SIZE = 20; // New size for largest foreground flakes
 const MIN_OPACITY = 0.7;
 const MAX_OPACITY = 0.9;
 const BASE_BLUR = 35; // Base blur amount
-const MAX_BLUR_MULTIPLIER = 2; // Maximum blur multiplier
 
 // Safe dimensions
 const safeHeight = Math.max(SCREEN_HEIGHT, 800);
@@ -42,6 +38,121 @@ const getAnimatedValue = (animatedValue: Animated.Value): number => {
   const value = (animatedValue as any)._value;
   return typeof value === "number" ? value : 0;
 };
+
+// Cloud component
+const Cloud = memo(
+  ({
+    x,
+    y,
+    imageSource,
+    xPercent,
+    yPercent,
+    scale = 1,
+  }: {
+    x: Animated.Value;
+    y: Animated.Value;
+    imageSource: any;
+    xPercent: number;
+    yPercent: number;
+    scale?: number;
+  }) => {
+    const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+
+    // Create animated values for cloud movement
+    const moveX = useRef(new Animated.Value(0)).current;
+    const moveY = useRef(new Animated.Value(0)).current;
+
+    // Function to create random cloud movement
+    const animateCloud = () => {
+      // Random movement range (smaller = more subtle)
+      const xRange = Math.random() * 15 + 5; // 5-20 pixels
+      const yRange = Math.random() * 8 + 2; // 2-10 pixels
+
+      // Random duration (longer = slower movement)
+      const duration = Math.random() * 4000 + 6000; // 6-10 seconds
+
+      // Create horizontal movement
+      Animated.sequence([
+        Animated.timing(moveX, {
+          toValue: xRange,
+          duration: duration,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(moveX, {
+          toValue: -xRange,
+          duration: duration,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]).start(() => animateCloud()); // Loop animation
+
+      // Create vertical movement with slight delay
+      Animated.sequence([
+        Animated.timing(moveY, {
+          toValue: yRange,
+          duration: duration * 1.2, // Slightly slower vertical movement
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(moveY, {
+          toValue: -yRange,
+          duration: duration * 1.2,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    };
+
+    // Start cloud animation on mount
+    useEffect(() => {
+      // Add random delay before starting animation
+      const startDelay = Math.random() * 2000;
+      setTimeout(animateCloud, startDelay);
+    }, []);
+
+    return (
+      <Animated.View
+        style={[
+          styles.cloud,
+          {
+            left: (SCREEN_WIDTH * xPercent) / 100,
+            top: (SCREEN_HEIGHT * yPercent) / 100,
+            transform: [
+              { translateX: moveX },
+              { translateY: moveY },
+              {
+                translateX: new Animated.Value(-(dimensions.width * scale) / 2),
+              },
+              {
+                translateY: new Animated.Value(
+                  -(dimensions.height * scale) / 2
+                ),
+              },
+              { scale: scale },
+            ],
+          },
+        ]}
+      >
+        <Image
+          source={imageSource}
+          style={[
+            styles.cloudImage,
+            {
+              width: 400,
+              height: 200,
+              opacity: 1.25, // Make clouds 25% brighter/thicker
+            },
+          ]}
+          onLayout={(event) => {
+            const { width, height } = event.nativeEvent.layout;
+            setDimensions({ width, height });
+          }}
+        />
+      </Animated.View>
+    );
+  }
+);
 
 // Memoized snowflake component to prevent re-renders
 const Snowflake = memo(
@@ -65,6 +176,13 @@ const Snowflake = memo(
     // Calculate dimensions for a true radial gradient effect
     const width = isElliptical ? size * 1.3 : size;
     const height = isElliptical ? size * 0.8 : size;
+
+    // Create an animated value for the fade effect based on Y position
+    const fadeOpacity = y.interpolate({
+      inputRange: [0, SCREEN_HEIGHT * 0.05, SCREEN_HEIGHT * 0.15],
+      outputRange: [0, 0, 1],
+      extrapolate: "clamp",
+    });
 
     // Container needs to be much larger to accommodate the full gradient spread
     const containerScale = 3;
@@ -110,7 +228,7 @@ const Snowflake = memo(
                 }),
               },
             ],
-            opacity: opacity,
+            opacity: Animated.multiply(opacity, fadeOpacity),
           },
         ]}
       >
@@ -258,8 +376,93 @@ interface SnowflakeData {
   driftDirection: "left" | "right" | "sway"; // New property for drift direction
 }
 
+// Cloud type definition
+interface CloudData {
+  id: number;
+  position: Animated.ValueXY;
+  image: number;
+  xPercent: number;
+  yPercent: number;
+  scale: number;
+}
+
 const SnowDayEffect: React.FC = () => {
   const [activeFlakes, setActiveFlakes] = useState(SNOWFLAKE_COUNT);
+
+  // Get cloud images
+  const cloudImages = [
+    require("../../assets/images/Cloud_1.webp"),
+    require("../../assets/images/Cloud_2.webp"),
+  ];
+
+  // Create cloud data with exact fixed positions
+  const clouds = useRef<CloudData[]>([
+    // Scattered clouds across the top
+    {
+      id: 0,
+      position: new Animated.ValueXY({ x: 0, y: 0 }),
+      image: 1, // Cloud_2
+      xPercent: -15,
+      yPercent: 13, // Lowered by 5%
+      scale: 1.15,
+    },
+    {
+      id: 1,
+      position: new Animated.ValueXY({ x: 0, y: 0 }),
+      image: 0, // Cloud_1
+      xPercent: 5,
+      yPercent: 10, // Lowered by 5%
+      scale: 1.2,
+    },
+    {
+      id: 2,
+      position: new Animated.ValueXY({ x: 0, y: 0 }),
+      image: 1, // Cloud_2
+      xPercent: 25,
+      yPercent: 17, // Lowered by 5%
+      scale: 0.95,
+    },
+    {
+      id: 3,
+      position: new Animated.ValueXY({ x: 0, y: 0 }),
+      image: 0, // Cloud_1
+      xPercent: 40,
+      yPercent: 12, // Lowered by 5%
+      scale: 1.1,
+    },
+    {
+      id: 4,
+      position: new Animated.ValueXY({ x: 0, y: 0 }),
+      image: 1, // Cloud_2
+      xPercent: 55,
+      yPercent: 15, // Lowered by 5%
+      scale: 1.05,
+    },
+    {
+      id: 5,
+      position: new Animated.ValueXY({ x: 0, y: 0 }),
+      image: 0, // Cloud_1
+      xPercent: 70,
+      yPercent: 11, // Lowered by 5%
+      scale: 1.15,
+    },
+    {
+      id: 6,
+      position: new Animated.ValueXY({ x: 0, y: 0 }),
+      image: 1, // Cloud_2
+      xPercent: 90,
+      yPercent: 20, // Lowered by 5%
+      scale: 0.9,
+    },
+    {
+      id: 7,
+      position: new Animated.ValueXY({ x: 0, y: 0 }),
+      image: 0, // Cloud_1
+      xPercent: 105, // Slightly off-screen to the right
+      yPercent: 14, // Lowered by 5%
+      scale: 1.1,
+    },
+  ]).current;
 
   // Create snowflakes with animation reference
   const snowflakes = useRef<SnowflakeData[]>(
@@ -297,7 +500,7 @@ const SnowDayEffect: React.FC = () => {
       let speedFactor;
       if (size >= EXTRA_LARGE_SIZE * 0.8) {
         // Extra large flakes (extreme foreground) move fastest
-        speedFactor = 1.6 + Math.random() * 0.4; // 1.6-2.0
+        speedFactor = 1.4 + Math.random() * 0.4; // 1.6-2.0
       } else if (size >= 8) {
         // Large flakes (foreground) move fast
         speedFactor = 1.0 + (0.5 * (size - 8)) / 2; // Map 8-10 to 1.0-1.5
@@ -306,7 +509,7 @@ const SnowDayEffect: React.FC = () => {
         speedFactor = 0.7 + (0.3 * (size - 4)) / 3; // Map 4-7 to 0.7-1.0
       } else {
         // Small flakes (background) move slowest
-        speedFactor = 0.4 + (0.3 * (size - 1)) / 2; // Map 1-3 to 0.4-0.7
+        speedFactor = 0.6 + (0.3 * (size - 1)) / 2; // Map 1-3 to 0.4-0.7
       }
 
       // Add random variation to speed (-0.5 to +0.5)
@@ -434,7 +637,7 @@ const SnowDayEffect: React.FC = () => {
     // Maintain 50% opacity for extra large flakes
     const flakeOpacity =
       flake.size >= EXTRA_LARGE_SIZE * 0.8
-        ? 0.5
+        ? 0.3
         : Math.max(0.3, Math.min(0.6, Math.random() * 0.3 + 0.3));
 
     flake.opacity.setValue(flakeOpacity);
@@ -456,6 +659,8 @@ const SnowDayEffect: React.FC = () => {
     // Start animations for all flakes
     snowflakes.forEach(animateFlake);
 
+    // Do not animate clouds - they should remain static
+
     // Cleanup on unmount
     return () => {
       snowflakes.forEach((flake) => {
@@ -469,20 +674,40 @@ const SnowDayEffect: React.FC = () => {
   }, []);
 
   return (
-    <View style={styles.container} pointerEvents="none">
-      {snowflakes.map((flake) => (
-        <Snowflake
-          key={flake.id}
-          size={flake.size}
-          x={flake.position.x}
-          y={flake.position.y}
-          opacity={flake.opacity}
-          isElliptical={flake.isElliptical}
-          rotation={flake.rotation}
-          blurAmount={flake.blurAmount}
-        />
-      ))}
-    </View>
+    <>
+      {/* Container should have highest z-index since it contains clouds and snow */}
+      <View style={[styles.container]} pointerEvents="none">
+        <View style={[styles.snowLayer]}>
+          {/* Render snowflakes */}
+          {snowflakes.map((flake) => (
+            <Snowflake
+              key={flake.id}
+              size={flake.size}
+              x={flake.position.x}
+              y={flake.position.y}
+              opacity={flake.opacity}
+              isElliptical={flake.isElliptical}
+              rotation={flake.rotation}
+              blurAmount={flake.blurAmount}
+            />
+          ))}
+        </View>
+        <View style={[styles.cloudLayer]}>
+          {/* Render clouds */}
+          {clouds.map((cloud) => (
+            <Cloud
+              key={`cloud-${cloud.id}`}
+              x={cloud.position.x}
+              y={cloud.position.y}
+              imageSource={cloudImages[cloud.image]}
+              xPercent={cloud.xPercent}
+              yPercent={cloud.yPercent}
+              scale={cloud.scale}
+            />
+          ))}
+        </View>
+      </View>
+    </>
   );
 };
 
@@ -491,12 +716,31 @@ const styles = StyleSheet.create({
     position: "absolute",
     width: "100%",
     height: "100%",
-    zIndex: 10,
+    zIndex: 15, // Above house
+  },
+  snowLayer: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    zIndex: 16, // Above container
+  },
+  cloudLayer: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    zIndex: 17, // Above snow
   },
   snowflake: {
     position: "absolute",
     overflow: "visible",
-    backgroundColor: "transparent", // No background on container
+    backgroundColor: "transparent",
+  },
+  cloud: {
+    position: "absolute",
+    overflow: "visible",
+  },
+  cloudImage: {
+    resizeMode: "contain",
   },
 });
 

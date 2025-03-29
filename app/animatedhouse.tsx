@@ -34,25 +34,35 @@ enum WeatherType {
 
 // Sky gradient colors for different conditions
 const skySunnyDayGradient = ["#87CEEB", "#4f71a7"] as const;
-const skySunnyNightGradient = ["#0C1221", "#1f2a3a"] as const;
-const skyClearDayGradient = ["#87CEEB", "#4f71a7"] as const;
 const skyClearNightGradient = ["#0C1221", "#1f2a3a"] as const;
-const skyPartlyCloudyDayGradient = ["#7e96ba", "#4f71a7"] as const;
-const skyPartlyCloudyNightGradient = ["#232936", "#1f2a3a"] as const;
+const skySnowDayGradient = ["#859db2", "#8ca5c7"] as const;
+const skySnowNightGradient = ["#2a3646", "#1f2a3a"] as const;
 const skyCloudyDayGradient = ["#6e8bb2", "#4f71a7"] as const;
 const skyCloudyNightGradient = ["#1e2430", "#1f2a3a"] as const;
 const skyRainyDayGradient = ["#5a7799", "#4f71a7"] as const;
 const skyRainyNightGradient = ["#1a222d", "#1f2a3a"] as const;
-const snowySkyGradient = ["#7e96ba", "#4f71a7"] as const;
-const snowyNightSkyGradient = ["#2a3646", "#1f2a3a"] as const;
+const skyPartlyCloudyDayGradient = ["#7e96ba", "#4f71a7"] as const;
+const skyPartlyCloudyNightGradient = ["#232936", "#1f2a3a"] as const;
 
 // Floor gradient colors for different conditions
-const floorGradient = ["#50627b", "#4f71a7"] as const; // Standard floor gradient for all conditions
-const skyGradient = ["#374a61", "#435469"] as const; // Standard sky gradient for all conditions
+const floorSunnyDayGradient = ["#88a6c9", "#4f71a7"] as const;
+const floorClearNightGradient = ["#1a2639", "#101825"] as const;
+const floorSnowDayGradient = ["#7b96bb", "#748fbd"] as const;
+const floorSnowNightGradient = ["#3a4961", "#293546"] as const;
+const floorCloudyDayGradient = ["#6a8cb5", "#3c5a87"] as const;
+const floorCloudyNightGradient = ["#1c2938", "#131c28"] as const;
+const floorRainyDayGradient = ["#5d7ea0", "#3c5a87"] as const;
+const floorRainyNightGradient = ["#192330", "#131c28"] as const;
+const floorPartlyCloudyDayGradient = ["#7590b3", "#4f71a7"] as const;
+const floorPartlyCloudyNightGradient = ["#232f42", "#1b2535"] as const;
+
+// Standard gradients (used as fallbacks or defaults)
+const skyGradient = ["#374a61", "#435469"] as const;
+const floorGradient = ["#50627b", "#4f71a7"] as const;
 
 // Type definition for the gradient colors
-type FloorGradientType = typeof floorGradient;
-type SkyGradientType = typeof skyGradient;
+type FloorGradientType = readonly [string, string];
+type SkyGradientType = readonly [string, string];
 
 export default function AnimatedHouse() {
   // State to track weather condition (currently manually set)
@@ -79,8 +89,14 @@ export default function AnimatedHouse() {
   const screenWidth = Dimensions.get("window").width;
   const screenHeight = Dimensions.get("window").height;
 
-  // Calculate house size based only on width to maintain aspect ratio
-  const imageWidth = screenWidth * 0.9; // 90% of screen width
+  // Define house dimensions based on actual aspect ratio (4930 × 10554)
+  const aspectRatio = 4930 / 10554; // Width to height ratio
+  const houseWidth = screenWidth * 1.5; // Making the house 50% wider than the screen
+  const houseHeight = houseWidth / aspectRatio;
+
+  // Calculate position for house to place its center point at 20% from top
+  const centerYPosition = screenHeight * 0.35; // 20% from top
+  const houseTopPosition = centerYPosition - houseHeight / 2;
 
   // Function to check time of day and update weather condition
   const checkTimeOfDay = () => {
@@ -130,33 +146,25 @@ export default function AnimatedHouse() {
 
   // Helper function to get the base weather type from a full weather condition
   const getCurrentWeatherBase = (weather: WeatherType): string => {
-    if (
-      weather === WeatherType.SUNNY_DAY ||
-      weather === WeatherType.CLEAR_NIGHT
-    ) {
-      return "sunny";
-    } else if (
-      weather === WeatherType.SNOW_DAY ||
-      weather === WeatherType.SNOW_NIGHT
-    ) {
-      return "snow";
-    } else if (
-      weather === WeatherType.CLOUDY_DAY ||
-      weather === WeatherType.CLOUDY_NIGHT
-    ) {
-      return "cloudy";
-    } else if (
-      weather === WeatherType.RAINY_DAY ||
-      weather === WeatherType.RAINY_NIGHT
-    ) {
-      return "rainy";
-    } else if (
-      weather === WeatherType.PARTLY_CLOUDY_DAY ||
-      weather === WeatherType.PARTLY_CLOUDY_NIGHT
-    ) {
-      return "partly_cloudy";
+    switch (weather) {
+      case WeatherType.SUNNY_DAY:
+      case WeatherType.CLEAR_NIGHT:
+        return "sunny";
+      case WeatherType.SNOW_DAY:
+      case WeatherType.SNOW_NIGHT:
+        return "snow";
+      case WeatherType.CLOUDY_DAY:
+      case WeatherType.CLOUDY_NIGHT:
+        return "cloudy";
+      case WeatherType.RAINY_DAY:
+      case WeatherType.RAINY_NIGHT:
+        return "rainy";
+      case WeatherType.PARTLY_CLOUDY_DAY:
+      case WeatherType.PARTLY_CLOUDY_NIGHT:
+        return "partly_cloudy";
+      default:
+        return "sunny";
     }
-    return "snow"; // Default
   };
 
   // Function to update weather (would connect to a weather API in a real app)
@@ -192,11 +200,55 @@ export default function AnimatedHouse() {
 
   // Handle gradient updates based on weather
   const updateGradients = (weather: WeatherType) => {
-    // Always use the standard floor gradient for now as requested
-    const newFloorGradient = floorGradient;
+    // Select the appropriate floor and sky gradients based on weather condition
+    let newFloorGradient: FloorGradientType;
+    let newSkyGradient: SkyGradientType;
 
-    // For now, as requested, we'll use the same sky gradient for all cases
-    const newSkyGradient = skyGradient;
+    switch (weather) {
+      case WeatherType.SUNNY_DAY:
+        newFloorGradient = floorSunnyDayGradient;
+        newSkyGradient = skySunnyDayGradient;
+        break;
+      case WeatherType.CLEAR_NIGHT:
+        newFloorGradient = floorClearNightGradient;
+        newSkyGradient = skyClearNightGradient;
+        break;
+      case WeatherType.SNOW_DAY:
+        newFloorGradient = floorSnowDayGradient;
+        newSkyGradient = skySnowDayGradient;
+        break;
+      case WeatherType.SNOW_NIGHT:
+        newFloorGradient = floorSnowNightGradient;
+        newSkyGradient = skySnowNightGradient;
+        break;
+      case WeatherType.CLOUDY_DAY:
+        newFloorGradient = floorCloudyDayGradient;
+        newSkyGradient = skyCloudyDayGradient;
+        break;
+      case WeatherType.CLOUDY_NIGHT:
+        newFloorGradient = floorCloudyNightGradient;
+        newSkyGradient = skyCloudyNightGradient;
+        break;
+      case WeatherType.RAINY_DAY:
+        newFloorGradient = floorRainyDayGradient;
+        newSkyGradient = skyRainyDayGradient;
+        break;
+      case WeatherType.RAINY_NIGHT:
+        newFloorGradient = floorRainyNightGradient;
+        newSkyGradient = skyRainyNightGradient;
+        break;
+      case WeatherType.PARTLY_CLOUDY_DAY:
+        newFloorGradient = floorPartlyCloudyDayGradient;
+        newSkyGradient = skyPartlyCloudyDayGradient;
+        break;
+      case WeatherType.PARTLY_CLOUDY_NIGHT:
+        newFloorGradient = floorPartlyCloudyNightGradient;
+        newSkyGradient = skyPartlyCloudyNightGradient;
+        break;
+      default:
+        newFloorGradient = floorGradient;
+        newSkyGradient = skyGradient;
+    }
 
     // Set the hidden gradients to the new targets
     setHiddenFloorGradient(newFloorGradient);
@@ -264,8 +316,30 @@ export default function AnimatedHouse() {
 
   // Get the appropriate house image based on weather
   const getHouseImage = () => {
-    // For now use the same house image for all conditions as requested
-    return require("../assets/images/Plain2dHouse.webp");
+    switch (weatherCondition) {
+      case WeatherType.SUNNY_DAY:
+        return require("../assets/images/Plain2dHouse.webp");
+      case WeatherType.CLEAR_NIGHT:
+        return require("../assets/images/Plain2dHouse.webp");
+      case WeatherType.SNOW_DAY:
+        return require("../assets/images/SnowDayHouse.webp");
+      case WeatherType.SNOW_NIGHT:
+        return require("../assets/images/SnowNightHouse.webp");
+      case WeatherType.CLOUDY_DAY:
+        return require("../assets/images/Plain2dHouse.webp");
+      case WeatherType.CLOUDY_NIGHT:
+        return require("../assets/images/Plain2dHouse.webp");
+      case WeatherType.RAINY_DAY:
+        return require("../assets/images/Plain2dHouse.webp");
+      case WeatherType.RAINY_NIGHT:
+        return require("../assets/images/Plain2dHouse.webp");
+      case WeatherType.PARTLY_CLOUDY_DAY:
+        return require("../assets/images/Plain2dHouse.webp");
+      case WeatherType.PARTLY_CLOUDY_NIGHT:
+        return require("../assets/images/Plain2dHouse.webp");
+      default:
+        return require("../assets/images/Plain2dHouse.webp");
+    }
   };
 
   return (
@@ -311,16 +385,10 @@ export default function AnimatedHouse() {
       </Animated.View>
 
       {/* The house image */}
-      <View style={styles.content}>
+      <View style={[styles.houseContainer]}>
         <Image
           source={getHouseImage()}
-          style={[
-            styles.houseImage,
-            {
-              width: imageWidth,
-              position: "absolute",
-            },
-          ]}
+          style={styles.houseImage}
           resizeMode="contain"
         />
       </View>
@@ -334,11 +402,6 @@ export default function AnimatedHouse() {
           headerShown: true,
         }}
       />
-
-      {/* Time and weather indicator */}
-      <View style={styles.timeIndicator}>
-        <Text style={styles.timeText}>Time: {weatherCondition}</Text>
-      </View>
     </View>
   );
 }
@@ -346,6 +409,11 @@ export default function AnimatedHouse() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   background: {
     position: "absolute",
@@ -353,6 +421,8 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
+    width: "100%",
+    height: "100%",
   },
   floor: {
     position: "absolute",
@@ -360,31 +430,36 @@ const styles = StyleSheet.create({
     right: 0,
     height: "60%", // Bottom 60% of screen
     bottom: 0,
+    width: "100%",
   },
   floorGradient: {
     flex: 1,
+    width: "100%",
+    height: "100%",
   },
   content: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-start",
+    paddingTop: "25%",
     zIndex: 1,
   },
-  houseImage: {
-    // Base styles, dimensions will be overridden by inline styles
-  },
-  timeIndicator: {
+  houseContainer: {
     position: "absolute",
-    right: 20,
-    bottom: 40,
-    backgroundColor: "rgba(255, 255, 255, 0.7)",
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    borderRadius: 20,
-    zIndex: 2,
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "visible",
+    zIndex: 5,
   },
-  timeText: {
-    fontSize: 14,
-    fontWeight: "600",
+  houseImage: {
+    width: "130%",
+    height: "130%",
+    position: "absolute",
+    top: "40%",
+    left: "50%",
+    transform: [{ translateX: "-50%" }, { translateY: "-50%" }],
+    zIndex: 5,
   },
 });
